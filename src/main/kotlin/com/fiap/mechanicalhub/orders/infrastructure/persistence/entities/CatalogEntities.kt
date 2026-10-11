@@ -42,6 +42,20 @@ class VehicleEntity(
     var deletedAt: Instant?,
 )
 
+/** Funcionario (`users`), lido para notificar o mecanico responsavel. */
+@Entity
+@Table(name = "users")
+class EmployeeEntity(
+    @Id
+    var id: UUID,
+    @Column(nullable = false)
+    var name: String,
+    @Column(nullable = false)
+    var email: String,
+    @Column(name = "deleted_at")
+    var deletedAt: Instant?,
+)
+
 /** Catalogo de reparos (`services`); id = repairId. */
 @Entity
 @Table(name = "services")

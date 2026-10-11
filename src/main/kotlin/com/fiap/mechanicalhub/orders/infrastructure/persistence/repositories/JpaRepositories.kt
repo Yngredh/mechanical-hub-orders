@@ -1,6 +1,7 @@
 package com.fiap.mechanicalhub.orders.infrastructure.persistence.repositories
 
 import com.fiap.mechanicalhub.orders.infrastructure.persistence.entities.CustomerEntity
+import com.fiap.mechanicalhub.orders.infrastructure.persistence.entities.EmployeeEntity
 import com.fiap.mechanicalhub.orders.infrastructure.persistence.entities.OutboxEventEntity
 import com.fiap.mechanicalhub.orders.infrastructure.persistence.entities.RepairEntity
 import com.fiap.mechanicalhub.orders.infrastructure.persistence.entities.ServiceOrderEntity
@@ -31,6 +32,10 @@ interface RepairJpaRepository : JpaRepository<RepairEntity, UUID> {
     fun findAllByActiveTrueAndDeletedAtIsNullOrderByName(): List<RepairEntity>
 
     fun findAllByIdInAndDeletedAtIsNull(ids: Collection<UUID>): List<RepairEntity>
+}
+
+interface EmployeeJpaRepository : JpaRepository<EmployeeEntity, UUID> {
+    fun findByIdAndDeletedAtIsNull(id: UUID): EmployeeEntity?
 }
 
 interface OutboxEventJpaRepository : JpaRepository<OutboxEventEntity, Long>
