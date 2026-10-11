@@ -38,6 +38,11 @@ mechanical-hub:
       orchestrator-events: ${ORCHESTRATOR_EVENTS_QUEUE_URL:mechanical-hub-orchestrator-events.fifo}
     # Base do link de aprovacao enviado ao cliente.
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    # Relay do outbox (failure_handling.md §4).
+    outbox:
+      relay-enabled: ${OUTBOX_RELAY_ENABLED:true}
+      fixed-delay: 1000
+      batch-size: 100
 
 management:
   endpoints:
