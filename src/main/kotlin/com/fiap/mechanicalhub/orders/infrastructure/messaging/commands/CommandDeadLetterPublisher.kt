@@ -3,6 +3,7 @@ package com.fiap.mechanicalhub.orders.infrastructure.messaging.commands
 import com.fiap.mechanicalhub.orders.infrastructure.config.OrdersProperties
 import io.awspring.cloud.sqs.listener.SqsHeaders
 import io.awspring.cloud.sqs.operations.SqsTemplate
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.messaging.Message
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -16,6 +17,7 @@ import java.util.UUID
 class CommandDeadLetterPublisher(
     private val sqsTemplate: SqsTemplate,
     private val properties: OrdersProperties,
+    private val meterRegistry: MeterRegistry,
 ) {
     fun publish(
         message: Message<String>,
@@ -41,12 +43,15 @@ class CommandDeadLetterPublisher(
                 .messageGroupId(groupId)
                 .messageDeduplicationId(deduplicationId)
         }
+        // sqs_dlq_sent_total{queue, reason} (failure_handling.md §3.2).
+        meterRegistry.counter("sqs.dlq.sent", "queue", DLQ_TAG, "reason", error.javaClass.simpleName).increment()
     }
 
     private companion object {
         /** Propagacao W3C usada pelo agente OpenTelemetry nos message attributes. */
         val TRACE_HEADERS = listOf("traceparent", "tracestate", "baggage")
         const val DEFAULT_GROUP = "unknown"
+        const val DLQ_TAG = "mechanical-hub-orders-commands-dlq.fifo"
         const val MAX_ERROR_LENGTH = 1_000
     }
 }

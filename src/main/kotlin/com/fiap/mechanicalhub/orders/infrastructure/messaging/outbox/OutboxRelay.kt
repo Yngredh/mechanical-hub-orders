@@ -1,5 +1,6 @@
 package com.fiap.mechanicalhub.orders.infrastructure.messaging.outbox
 
+import com.fiap.mechanicalhub.orders.infrastructure.observability.LogContext
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
@@ -58,16 +59,26 @@ class OutboxRelay(
 
         var published = 0
         for (message in store.findPending(batchSize)) {
-            val failure = runCatching { publisher.publish(message) }.exceptionOrNull()
-            if (failure != null) {
-                log.warn("Falha ao publicar {} (eventId={}): {}", message.eventType, message.eventId, failure.message)
-                store.registerFailure(message.sequence, failure.toString())
-                break
-            }
-            store.markSent(message.sequence, clock)
+            val sent =
+                LogContext.with(
+                    LogContext.ORDER_ID to message.aggregateId,
+                    LogContext.EVENT_ID to message.eventId,
+                ) { publish(message) }
+            if (!sent) break
             published++
         }
         return published
+    }
+
+    private fun publish(message: PendingOutboxMessage): Boolean {
+        val failure = runCatching { publisher.publish(message) }.exceptionOrNull()
+        if (failure != null) {
+            log.warn("Falha ao publicar {}: {}", message.eventType, failure.message)
+            store.registerFailure(message.sequence, failure.toString())
+            return false
+        }
+        store.markSent(message.sequence, clock)
+        return true
     }
 
     private companion object {

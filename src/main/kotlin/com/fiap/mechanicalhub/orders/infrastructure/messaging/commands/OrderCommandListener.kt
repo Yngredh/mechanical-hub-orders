@@ -1,6 +1,7 @@
 package com.fiap.mechanicalhub.orders.infrastructure.messaging.commands
 
 import com.fiap.mechanicalhub.orders.application.ports.NotificationPort
+import com.fiap.mechanicalhub.orders.infrastructure.observability.LogContext
 import io.awspring.cloud.sqs.annotation.SqsListener
 import io.awspring.cloud.sqs.listener.SqsHeaders
 import io.awspring.cloud.sqs.listener.Visibility
@@ -22,6 +23,22 @@ class OrderCommandListener(
 ) {
     @SqsListener(queueNames = ["\${mechanical-hub.orders.queues.orders-commands}"])
     fun onMessage(
+        message: Message<String>,
+        acknowledgement: Acknowledgement,
+        visibility: Visibility,
+    ) {
+        val headers = message.headers
+        LogContext.with(
+            // MessageGroupId = orderId e MessageDeduplicationId = eventId; transactionId entra apos o parse.
+            LogContext.ORDER_ID to headers[SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER],
+            LogContext.EVENT_ID to headers[SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_DEDUPLICATION_ID_HEADER],
+            LogContext.TRANSACTION_ID to null,
+        ) {
+            handle(message, acknowledgement, visibility)
+        }
+    }
+
+    private fun handle(
         message: Message<String>,
         acknowledgement: Acknowledgement,
         visibility: Visibility,
