@@ -1,9 +1,8 @@
 package com.fiap.mechanicalhub.orders.application.usecases.commands
 
 import com.fiap.mechanicalhub.orders.application.events.OutgoingEvent
-import com.fiap.mechanicalhub.orders.application.ports.InboxPort
-import com.fiap.mechanicalhub.orders.application.ports.OutboxPort
-import com.fiap.mechanicalhub.orders.application.ports.ProcessedCommand
+import com.fiap.mechanicalhub.orders.fixtures.FakeInbox
+import com.fiap.mechanicalhub.orders.fixtures.FakeOutbox
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -55,26 +54,5 @@ class IdempotentCommandRunnerTest {
         runner.run("tx:MARK_STOCK_PENDING") { CommandEffect() }
 
         assertEquals(true, lockTimeoutApplied)
-    }
-
-    private class FakeInbox : InboxPort {
-        val entries = mutableMapOf<String, OutgoingEvent?>()
-
-        override fun find(messageKey: String) = if (messageKey in entries) ProcessedCommand(entries[messageKey]) else null
-
-        override fun register(
-            messageKey: String,
-            response: OutgoingEvent?,
-        ) {
-            entries[messageKey] = response
-        }
-    }
-
-    private class FakeOutbox : OutboxPort {
-        val events = mutableListOf<OutgoingEvent>()
-
-        override fun append(event: OutgoingEvent) {
-            events += event
-        }
     }
 }
