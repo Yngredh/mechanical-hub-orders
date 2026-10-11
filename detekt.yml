@@ -7,8 +7,20 @@ style:
     ignoreAnnotation: true
   ReturnCount:
     max: 3
+  MaxLineLength:
+    # Mesmo limite do ktlint (.editorconfig).
+    maxLineLength: 140
 
 performance:
   SpreadOperator:
     # runApplication(*args) e o ponto de entrada padrao do Spring Boot.
     excludes: ['**/*Application.kt']
+
+complexity:
+  TooManyFunctions:
+    # O agregado ServiceOrder expoe um metodo por transicao de order_status.md.
+    thresholdInClasses: 20
+  LongParameterList:
+    functionThreshold: 7
+    # Entidades JPA espelham as colunas da tabela.
+    excludes: ['**/persistence/entities/**']
