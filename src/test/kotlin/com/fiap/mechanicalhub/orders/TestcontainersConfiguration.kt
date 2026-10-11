@@ -10,5 +10,7 @@ import org.testcontainers.utility.DockerImageName
 class TestcontainersConfiguration {
     @Bean
     @ServiceConnection
-    fun postgresContainer(): PostgreSQLContainer = PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+    fun postgresContainer(): PostgreSQLContainer =
+        PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+            .withInitScript("db/test-init.sql")
 }
