@@ -1,0 +1,11 @@
+target/
+.git/
+.github/
+.claude/
+.idea/
+.vscode/
+k8s/
+ci/
+docker/
+docker-compose.yml
+*.md

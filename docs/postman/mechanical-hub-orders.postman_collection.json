@@ -1,0 +1,221 @@
+{
+  "info": {
+    "name": "mechanical-hub-orders",
+    "description": "Fluxo da ordem de servico no mechanical-hub-orders.\n\nModo `gateway` (padrao): `baseUrl` = URL do API Gateway; rode `Auth / Login` primeiro (CPF e senha do funcionario das seeds) e o JWT vai para `jwt`. O gateway injeta `x-user-*`.\n\nModo `local`: `baseUrl` = http://localhost:8080 e `mode` = local; o script da pasta Mecanico envia `x-user-id`, `x-user-role` e `x-user-name` direto ao servico.\n\nOs passos da saga entre `Finalizar diagnostico` e `Aprovar`/`Recusar` (sendApproval, sendPaymentLink, releaseOrder...) chegam pelo orquestrador; localmente, envie-os a fila do LocalStack (ver README). O token de aprovacao chega ao cliente na notificacao (log do servico) e vai em `approvalToken`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "mode", "value": "local" },
+    { "key": "cpf", "value": "111.444.777-35" },
+    { "key": "password", "value": "" },
+    { "key": "jwt", "value": "" },
+    { "key": "userId", "value": "7a2e9b41-3c5d-4f60-8e1a-000000000002" },
+    { "key": "userRole", "value": "MECHANICAL" },
+    { "key": "userName", "value": "Mecanico Padrao" },
+    { "key": "customerId", "value": "96052f8d-0817-4124-84ad-918b7c9ac73d" },
+    { "key": "vehicleId", "value": "d0803851-6a5f-4fea-8463-a723be0e390c" },
+    { "key": "repairId", "value": "03d94934-6201-449b-b8db-490546c35d34" },
+    { "key": "orderId", "value": "" },
+    { "key": "orderNumber", "value": "" },
+    { "key": "approvalToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (API Gateway)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 com JWT', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('jwt', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"cpf\": \"{{cpf}}\", \"password\": \"{{password}}\" }" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mecanico",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Sem gateway: o servico le a identidade destes headers.",
+              "if (pm.collectionVariables.get('mode') === 'local') {",
+              "  pm.request.headers.upsert({ key: 'x-user-id', value: pm.collectionVariables.get('userId') });",
+              "  pm.request.headers.upsert({ key: 'x-user-role', value: pm.collectionVariables.get('userRole') });",
+              "  pm.request.headers.upsert({ key: 'x-user-name', value: pm.collectionVariables.get('userName') });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Catalogo de reparos",
+          "request": { "method": "GET", "url": "{{baseUrl}}/services" }
+        },
+        {
+          "name": "Abrir ordem",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 em IN_DIAGNOSIS', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().status.code).to.eql('IN_DIAGNOSIS');",
+                  "});",
+                  "pm.collectionVariables.set('orderId', pm.response.json().id);",
+                  "pm.collectionVariables.set('orderNumber', pm.response.json().orderNumber);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\"{{repairId}}\"],\n  \"requestDescription\": \"Barulho no motor\"\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Adicionar reparos",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"repairs\": [ { \"repairId\": \"{{repairId}}\" } ] }" },
+            "url": "{{baseUrl}}/orders/{{orderId}}/repairs"
+          }
+        },
+        {
+          "name": "Finalizar diagnostico (PREPARING)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"PREPARING\" }" },
+            "url": "{{baseUrl}}/orders/{{orderId}}/status"
+          }
+        },
+        {
+          "name": "Consultar ordem",
+          "request": { "method": "GET", "url": "{{baseUrl}}/orders/{{orderId}}" }
+        },
+        {
+          "name": "Listar ordens por status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/orders?status=WAITING_APPROVAL&customerId={{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "status", "value": "WAITING_APPROVAL" },
+                { "key": "customerId", "value": "{{customerId}}" },
+                { "key": "responsibleUserId", "value": "{{userId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar execucao (IN_PROGRESS)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"IN_PROGRESS\" }" },
+            "url": "{{baseUrl}}/orders/{{orderId}}/status"
+          }
+        },
+        {
+          "name": "Iniciar reparo (STARTED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"orderId\": \"{{orderId}}\", \"repairId\": \"{{repairId}}\", \"status\": \"STARTED\" }" },
+            "url": "{{baseUrl}}/orders/status"
+          }
+        },
+        {
+          "name": "Finalizar reparo (FINISHED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"orderId\": \"{{orderId}}\", \"repairId\": \"{{repairId}}\", \"status\": \"FINISHED\" }" },
+            "url": "{{baseUrl}}/orders/status"
+          }
+        },
+        {
+          "name": "Finalizar ordem (FINISHED)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"FINISHED\" }" },
+            "url": "{{baseUrl}}/orders/{{orderId}}/status"
+          }
+        },
+        {
+          "name": "Entregar (DELIVERED)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"DELIVERED\" }" },
+            "url": "{{baseUrl}}/orders/{{orderId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cliente",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Consultar orcamento",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Approval-Token", "value": "{{approvalToken}}" }],
+            "url": "{{baseUrl}}/mechanical-hub/service-orders/{{orderNumber}}"
+          }
+        },
+        {
+          "name": "Aprovar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Approval-Token", "value": "{{approvalToken}}" }],
+            "url": "{{baseUrl}}/mechanical-hub/service-orders/{{orderId}}/approve"
+          }
+        },
+        {
+          "name": "Recusar orcamento",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Approval-Token", "value": "{{approvalToken}}" }],
+            "url": "{{baseUrl}}/mechanical-hub/service-orders/{{orderId}}/reject"
+          }
+        }
+      ]
+    }
+  ]
+}

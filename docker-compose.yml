@@ -1,0 +1,34 @@
+# Ambiente local do mechanical-hub-orders: PostgreSQL 16 e LocalStack (SQS).
+# Sobe sozinho com `./mvnw spring-boot:run` (spring-boot-docker-compose) ou
+# manualmente com `docker compose up -d`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mechanical_hub_orders
+      POSTGRES_USER: orders_app
+      POSTGRES_PASSWORD: orders_app
+    ports:
+      - "5433:5432"
+    volumes:
+      # Cria a role mechanical_hub_auth (no RDS ela vem do mechanical-hub-database).
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders_app -d mechanical_hub_orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:4.4
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      # Filas FIFO + DLQs criadas no init (no AWS vêm do mechanical-hub-infra).
+      - ./docker/localstack/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+    labels:
+      # A conexao com o LocalStack e configurada pelo profile `local`.
+      org.springframework.boot.ignore: "true"

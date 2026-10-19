@@ -1,0 +1,59 @@
+spring:
+  application:
+    # Tag `application` das metricas e service.name dos traces.
+    name: mechanical-hub-orders
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mechanical_hub_orders}
+    username: ${DB_USERNAME:orders_app}
+    password: ${DB_PASSWORD:orders_app}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
+  docker:
+    compose:
+      # So sobe o docker-compose no profile local (ver application-local.yml).
+      enabled: false
+
+  cloud:
+    aws:
+      # Sem chave de acesso: na AWS as credenciais vem da LabRole (metadados da
+      # instancia do no do EKS), pela cadeia padrao do SDK.
+      region:
+        static: ${AWS_REGION:us-east-1}
+
+mechanical-hub:
+  environment: ${ENVIRONMENT:production}
+  orders:
+    # URLs das filas (outputs do mechanical-hub-infra).
+    queues:
+      orders-commands: ${ORDERS_COMMANDS_QUEUE_URL:mechanical-hub-orders-commands.fifo}
+      orders-commands-dlq: ${ORDERS_COMMANDS_DLQ_URL:mechanical-hub-orders-commands-dlq.fifo}
+      orchestrator-events: ${ORCHESTRATOR_EVENTS_QUEUE_URL:mechanical-hub-orchestrator-events.fifo}
+    # Base do link de aprovacao enviado ao cliente.
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    # Relay do outbox (failure_handling.md §4).
+    outbox:
+      relay-enabled: ${OUTBOX_RELAY_ENABLED:true}
+      fixed-delay: 1000
+      batch-size: 100
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${mechanical-hub.environment}

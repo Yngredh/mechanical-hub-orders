@@ -1,0 +1,4 @@
+# Somente no classpath de teste: ativa o profile `test` (logs legiveis, logback-spring.xml).
+spring:
+  profiles:
+    active: test
